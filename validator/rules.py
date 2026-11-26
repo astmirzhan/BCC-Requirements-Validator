@@ -333,3 +333,42 @@ def _missing_version(document: Document) -> list[Finding]:
             refs=[Reference(document.lines[anchor_no - 1].strip()[:200], anchor_no)],
         )
     ]
+
+
+_ROLLBACK_RE = re.compile(r"(откат|rollback|roll back|обратн\w* миграц|скрыти\w* функционал|feature[- ]?flag)", re.I)
+
+
+def run_gap_rules(document: Document) -> list[Finding]:
+    """Checks for what the document lacks. They run after the model steps and are not passed to the
+    model as "already found": the model rarely reports a missing section, and the dedupe step merges
+    any overlap, so the prompts (and their cache) stay independent of these rules."""
+    return _missing_rollback(document)
+
+
+def _missing_rollback(document: Document) -> list[Finding]:
+    """A change going to production needs a way back (completeness, ISO 29148 5.2.6)."""
+    mentions = [(no, line) for no, line in enumerate(document.lines, start=1) if _ROLLBACK_RE.search(line)]
+    described = [(no, line) for no, line in mentions if not _TEMPLATE_CHOICE_RE.search(line)]
+    if described:
+        return []
+    if mentions:
+        no, line = mentions[0]
+        problem = (
+            "Пункт чек-листа о схеме отката не заполнен, и нигде в документе не описано, как откатить "
+            "изменение или скрыть функционал, если после выпуска что-то пойдёт не так."
+        )
+    else:
+        no, line = 1, document.lines[0]
+        problem = "В документе нет плана отката: не описано, как вернуть прежнее состояние или скрыть функционал после неудачного выпуска."
+    return [
+        Finding(
+            scope="rule",
+            rule="no-rollback-plan",
+            criterion="complete",
+            severity="major",
+            problem=problem,
+            recommendation="Описать схему отката: выключение функции флагом, откат версии API и данных, "
+            "кто принимает решение и за какое время; либо явно указать «не требуется» с обоснованием.",
+            refs=[Reference(line.strip()[:200], no)],
+        )
+    ]

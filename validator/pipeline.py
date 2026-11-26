@@ -11,7 +11,7 @@ from .findings import Finding, Reference
 from .llm import LLMClient, LLMError
 from .loader import Document
 from .quotes import QuoteIndex
-from .rules import run_rules
+from .rules import run_gap_rules, run_rules
 
 VALID_STATUSES = {"pass", "partial", "fail", "na"}
 
@@ -85,6 +85,7 @@ def run_review(document: Document, llm: LLMClient, log=print) -> Review:
     set_findings, set_criteria, verdict = _parse_set_result(set_result, requirements, index)
     set_findings = conflict_findings + set_findings
 
+    rule_findings += run_gap_rules(document)
     _link_rules_to_requirements(rule_findings, requirements)
     all_findings = rule_findings + req_findings + set_findings
     kept = [f for f in all_findings if f.verified]
@@ -232,22 +233,50 @@ def _dedupe(findings: list[Finding]) -> list[Finding]:
             kept.append(finding)
             continue
         duplicate_of.related.extend(r for r in finding.related if r not in duplicate_of.related)
+        known = _ref_lines(duplicate_of)
+        duplicate_of.refs.extend(r for r in finding.refs if r.line and r.line not in known and r.match != "missing")
         if SEVERITY_ORDER[finding.severity] < SEVERITY_ORDER[duplicate_of.severity]:
             duplicate_of.severity = finding.severity
     return kept
 
 
 def _same_defect(a: Finding, b: Finding) -> bool:
-    lines_a = {r.line for r in a.refs if r.line and r.match != "missing"}
-    lines_b = {r.line for r in b.refs if r.line and r.match != "missing"}
+    lines_a, lines_b = _ref_lines(a), _ref_lines(b)
     common = lines_a & lines_b
-    if not common:
-        return False
     if len(common) >= 2:
         return True
-    if a.scope == "rule" and b.scope == "rule":
+    if common and a.scope == "rule" and b.scope == "rule":
         return a.rule == b.rule
-    return _similarity(a.problem, b.problem) >= 0.32
+    if a.scope == "rule" or b.scope == "rule":
+        return bool(common) and _similarity(a.problem, b.problem) >= 0.32
+    # Model findings often cite the same place from different ends ("line 175 contradicts line 189"),
+    # so lines named in the problem text count too, but then the texts must agree more closely.
+    if common:
+        return _similarity(a.problem, b.problem) >= 0.32
+    if (lines_a | _mentioned_lines(a.problem)) & (lines_b | _mentioned_lines(b.problem)):
+        return _similarity(a.problem, b.problem) >= 0.4 and bool(_signature(a.problem) & _signature(b.problem))
+    return False
+
+
+def _ref_lines(finding: Finding) -> set[int]:
+    return {r.line for r in finding.refs if r.line and r.match != "missing"}
+
+
+def _mentioned_lines(text: str) -> set[int]:
+    """Line numbers named in the text: «строка 189», «строки 169–171», «L64». Long ranges are ignored."""
+    found: set[int] = set()
+    for m in re.finditer(r"(?:строк\w*|L)\s*(\d{1,4})(?:\s*[-–—]\s*(\d{1,4}))?((?:\s*(?:,|и)\s*\d{1,4})*)", text):
+        start, end = int(m.group(1)), int(m.group(2) or m.group(1))
+        if 0 <= end - start <= 5:
+            found.update(range(start, end + 1))
+        found.update(int(n) for n in re.findall(r"\d{1,4}", m.group(3) or ""))
+    return found
+
+
+def _signature(text: str) -> frozenset[str]:
+    """HTTP statuses and requirement ids a finding is about; two findings on 403/404 share it."""
+    text = re.sub(r"(?:строк\w*|L)\s*[\d\s,–—-]+", " ", text)
+    return frozenset(re.findall(r"\b(?:20[01]|40[0-9]|42[29]|50[0-4])\b|Ф-\d+|НФТ-\d+", text))
 
 
 def _similarity(x: str, y: str) -> float:
