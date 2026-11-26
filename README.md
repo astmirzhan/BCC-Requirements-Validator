@@ -40,7 +40,7 @@ The default model is **Google Gemini** on the free tier, no card needed:
 
 The free tier has small daily quotas and the models are sometimes overloaded (HTTP 503). The agent then retries and moves to the next fallback model on its own. The report passport records which model handled each step.
 
-A run makes **3 model calls**, and answers are cached in `.cache/llm/`, so running again on the same document costs nothing. Use `--no-cache` to force fresh calls and `--model <name>` to override the model for one run.
+A run makes **4 model calls**, and answers are cached in `.cache/llm/`, so running again on the same document costs nothing. Use `--no-cache` to force fresh calls and `--model <name>` to override the model for one run.
 
 ### Other providers and a local model
 
@@ -85,21 +85,26 @@ document ─► loader ─► numbered lines
                    9 criteria, ISO 29148 5.2.5
                          │
                          ▼
-                   LLM 3: whole set
-                   ISO 29148 5.2.6 + IEEE 830 4.3,
-                   acceptance cases replayed against rules
+                   LLM 3: conflicts
+                   acceptance cases replayed against rules,
+                   pairs of rules on event sequences
                          │
                          ▼
-             quote verification ─► report.md
+                   LLM 4: whole set
+                   ISO 29148 5.2.6 + IEEE 830 4.3
+                         │
+                         ▼
+        quote verification + merging duplicates ─► report.md + report.html
 ```
 
 1. **Loader** (`validator/loader.py`) turns PDF, DOCX or Markdown into numbered lines. Every reference in the report is a line number (and a page for PDF).
-2. **Rules** (`validator/rules.py`) are deterministic checks that never hallucinate: vague wording («быстро», «в течение», «и т. п.»), empty sections and fields, placeholders, unfilled checklists and approval tables, mixed currency units, GET used for write operations, response codes used but not described, Content-Type without a body, missing document version.
+2. **Rules** (`validator/rules.py`) are deterministic checks that never hallucinate: vague wording («быстро», «в течение», «и т. п.»), empty sections and fields, placeholders, unfilled checklists and approval tables, mixed currency units, GET used for write operations, response codes used but not described, Content-Type without a body, missing document version, missing rollback plan.
 3. **Slicing** (LLM call 1) extracts every requirement with its document id (or an assigned `R-xx`), section, type and an exact quote.
 4. **Per-requirement check** (LLM call 2) scores each requirement on the nine ISO 29148 5.2.5 characteristics: necessary, appropriate, unambiguous, complete, singular, feasible, verifiable, correct, conforming.
-5. **Whole-set check** (LLM call 3) covers completeness, consistency, feasibility, comprehensibility, validatability (ISO 29148 5.2.6) and ranking, modifiability, traceability (IEEE 830 4.3). The model is told to replay every acceptance case through the rules and to test pairs of rules on event sequences, which is how contradictions are caught.
-6. **Quote verification** (`validator/quotes.py`): every quote the model returns is looked up in the document. Findings whose quote is not there are dropped from the summary and listed in an appendix, so the report contains no claims without a place in the text.
-7. **Report** (`validator/report.py`) follows section 6 of the task. Next to the Markdown file the agent writes an HTML version (`report.html`) with severity colors and clickable defect ids (`validator/html.py`).
+5. **Conflict search** (LLM call 3) replays every acceptance case through the rules, tests pairs of rules on event sequences and cross-checks API fields, units and status codes. This is how contradictions such as "at most one push a month" versus "push regardless of history" are caught, each with the scenario that breaks them.
+6. **Whole-set check** (LLM call 4) covers completeness, consistency, feasibility, comprehensibility, validatability (ISO 29148 5.2.6) and ranking, modifiability, traceability (IEEE 830 4.3).
+7. **Quote verification** (`validator/quotes.py`): every quote the model returns is looked up in the document. Findings whose quote is not there are dropped from the summary and listed in an appendix, so the report contains no claims without a place in the text. Findings about the same defect (same lines, or lines the texts name, and similar wording) are merged into one.
+8. **Report** (`validator/report.py`) follows section 6 of the task. Next to the Markdown file the agent writes an HTML version (`report.html`) with severity colors and clickable defect ids (`validator/html.py`).
 
 ## Report contents
 
@@ -121,13 +126,15 @@ validator/
   loader.py     PDF / DOCX / Markdown reading
   llm.py        provider-agnostic client: JSON, retries, fallbacks, cache, call log
   criteria.py   ISO 29148 / IEEE 830 criteria
-  prompts.py    prompts for the three LLM steps
+  prompts.py    prompts for the four LLM steps
   rules.py      deterministic checks
   quotes.py     quote verification
   pipeline.py   review pipeline
   report.py     Markdown report
+  html.py       HTML version of the report
 examples/requirements.md   document from the organizers
-reports/report.md          report produced by this agent
+examples/requirements.pdf  the same document as PDF
+reports/report.md, .html   report produced by this agent
 ```
 
 Every model call is logged to `logs/llm_calls.jsonl` (prompt, answer, model, time) for auditing. The folder is not committed.
