@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -36,6 +37,14 @@ class Document:
             return "—"
         page = self.pages.get(line_no)
         return f"стр. {page}, строка {line_no}" if page else f"строка {line_no}"
+
+
+# Look-alike glyphs that PDF text extraction often returns instead of Cyrillic letters.
+_LOOKALIKES = str.maketrans({"ĸ": "к", "\u00ad": None, "\ufeff": None, "\u200b": None})
+
+
+def _clean(line: str) -> str:
+    return unicodedata.normalize("NFKC", line).translate(_LOOKALIKES).rstrip()
 
 
 def _read_pdf(path: Path) -> tuple[list[str], dict[int, int]]:
@@ -98,7 +107,7 @@ def load_document(path: str | Path) -> Document:
     except Exception as exc:  # parser libraries raise many unrelated types
         raise DocumentError(f"Не удалось прочитать {path.name}: {exc}") from exc
 
-    lines = [line.rstrip() for line in lines]
+    lines = [_clean(line) for line in lines]
     if not any(line.strip() for line in lines):
         raise DocumentError(f"В документе {path.name} нет текста (возможно, это скан без текстового слоя)")
 
