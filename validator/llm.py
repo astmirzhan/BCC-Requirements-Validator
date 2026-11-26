@@ -59,7 +59,7 @@ class LLMConfig:
             fallbacks = _split(os.getenv("OPENAI_FALLBACK_MODELS", ""))
         else:
             raise LLMError(f"Неизвестный LLM_PROVIDER={provider}. Допустимо: gemini, openai, ollama")
-        if not api_key:
+        if not api_key or api_key.startswith("your_"):
             raise LLMError(
                 "Не найден API-ключ. Скопируйте .env.example в .env и укажите GEMINI_API_KEY "
                 "(или OPENAI_API_KEY для OpenAI-совместимого провайдера)."
