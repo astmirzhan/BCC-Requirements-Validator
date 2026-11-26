@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ATTEMPTS_PER_MODEL = 3
-CHAIN_ROUNDS = 4
+CHAIN_ROUNDS = int(os.getenv("LLM_CHAIN_ROUNDS", "4"))
 CHAIN_PAUSE = 60
 
 
@@ -37,6 +37,7 @@ class LLMConfig:
     temperature: float = 0.0
     fallback_models: list[str] = field(default_factory=list)
     cache_dir: Path | None = Path(".cache/llm")
+    read_cache: bool = True
     log_path: Path | None = Path("logs/llm_calls.jsonl")
 
     @classmethod
@@ -70,7 +71,7 @@ class LLMConfig:
             base_url=base_url,
             temperature=float(os.getenv("LLM_TEMPERATURE", "0")),
             fallback_models=[m for m in fallbacks if m != model],
-            cache_dir=Path(".cache/llm") if use_cache else None,
+            read_cache=use_cache,
         )
 
 
@@ -131,6 +132,10 @@ class LLMClient:
                 raw = self._call(model, system, prompt)
                 data = parse_json(raw)
             except LLMError as exc:
+                # Failed calls to an overloaded model still count against the free quota,
+                # so hand over to the next model at once instead of retrying the same one.
+                if _is_overloaded(exc) or _is_daily_quota(exc):
+                    raise
                 wait = _retry_delay(exc, attempt)
                 if wait is None or attempt == ATTEMPTS_PER_MODEL:
                     raise
@@ -215,7 +220,7 @@ class LLMClient:
     # ---- cache and log ----------------------------------------------------
 
     def _cache_get(self, key: str) -> dict | None:
-        if not self.config.cache_dir:
+        if not self.config.cache_dir or not self.config.read_cache:
             return None
         path = self.config.cache_dir / f"{key}.json"
         return json.loads(path.read_text("utf-8")) if path.is_file() else None
@@ -278,7 +283,9 @@ def _is_overloaded(exc: LLMError) -> bool:
 
 def _is_daily_quota(exc: LLMError) -> bool:
     message = str(exc)
-    return "429" in message and ("per day" in message.lower() or "PerDay" in message)
+    return "429" in message and (
+        "per day" in message.lower() or "PerDay" in message or "exceeded your current quota" in message
+    )
 
 
 def _retry_delay(exc: LLMError, attempt: int) -> float | None:

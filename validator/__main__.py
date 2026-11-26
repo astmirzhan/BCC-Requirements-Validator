@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("input", help="файл требований: .pdf, .docx, .md, .txt")
     parser.add_argument("output", help="куда записать отчёт (.md)")
     parser.add_argument("--model", help="модель вместо указанной в .env")
-    parser.add_argument("--no-cache", action="store_true", help="не использовать кэш ответов модели")
+    parser.add_argument("--no-cache", action="store_true", help="не брать ответы из кэша (новые ответы всё равно сохраняются)")
     args = parser.parse_args(argv)
 
     load_dotenv()
