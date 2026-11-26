@@ -165,7 +165,7 @@ def render_markdown(review: Review, meta: dict) -> str:
     return "\n".join(parts)
 
 
-STEP_NAMES = {"slice": "нарезка", "requirements": "проверка требований", "set": "проверка набора"}
+STEP_NAMES = {"slice": "нарезка", "requirements": "проверка требований", "conflicts": "поиск противоречий", "set": "проверка набора"}
 
 
 def _models_cell(meta: dict) -> str:

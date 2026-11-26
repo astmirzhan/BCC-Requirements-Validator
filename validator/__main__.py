@@ -14,6 +14,7 @@ from . import __version__
 from .llm import LLMClient, LLMConfig, LLMError
 from .loader import DocumentError, load_document
 from .pipeline import run_review
+from .html import markdown_to_html
 from .report import render_markdown, started_now
 
 
@@ -66,12 +67,16 @@ def main(argv: list[str] | None = None) -> int:
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render_markdown(review, meta), encoding="utf-8")
+    markdown = render_markdown(review, meta)
+    output.write_text(markdown, encoding="utf-8")
+    html_path = output.with_suffix(".html")
+    if html_path != output:
+        html_path.write_text(markdown_to_html(markdown, f"Отчёт: {document.title}"), encoding="utf-8")
 
     critical = sum(1 for f in review.findings if f.severity == "critical")
     print(
         f"Готово: требований {len(review.requirements)}, нарушений {len(review.findings)} "
-        f"(критичных {critical}). Отчёт: {output}"
+        f"(критичных {critical}). Отчёт: {output} (+ {html_path.name})"
     )
     return 0
 

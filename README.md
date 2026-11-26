@@ -99,7 +99,7 @@ document ─► loader ─► numbered lines
 4. **Per-requirement check** (LLM call 2) scores each requirement on the nine ISO 29148 5.2.5 characteristics: necessary, appropriate, unambiguous, complete, singular, feasible, verifiable, correct, conforming.
 5. **Whole-set check** (LLM call 3) covers completeness, consistency, feasibility, comprehensibility, validatability (ISO 29148 5.2.6) and ranking, modifiability, traceability (IEEE 830 4.3). The model is told to replay every acceptance case through the rules and to test pairs of rules on event sequences, which is how contradictions are caught.
 6. **Quote verification** (`validator/quotes.py`): every quote the model returns is looked up in the document. Findings whose quote is not there are dropped from the summary and listed in an appendix, so the report contains no claims without a place in the text.
-7. **Report** (`validator/report.py`) follows section 6 of the task.
+7. **Report** (`validator/report.py`) follows section 6 of the task. Next to the Markdown file the agent writes an HTML version (`report.html`) with severity colors and clickable defect ids (`validator/html.py`).
 
 ## Report contents
 
