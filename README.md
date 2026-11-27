@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/readme/banner.png" alt="BCC Requirements Validator: requirement defects, caught before the code" width="100%" />
+<img src="docs/readme/banner.png" alt="Requirements Validator: an AI agent finds spec bugs before the code" width="100%" />
 
 # BCC Requirements Validator
 
