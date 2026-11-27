@@ -164,6 +164,6 @@ pip install -r requirements-dev.txt
 python -m pytest
 ```
 
-24 tests run in under a second with no key and no network: rules on the sample document, quote verification, duplicate merging, PDF reading, and the whole pipeline with a fake model (the critical-defect verdict, dropped findings with invented quotes). GitHub Actions runs them on Python 3.11 and 3.12 on every push.
+25 tests run in under a second with no key and no network: rules on the sample document, quote verification, duplicate merging, PDF reading, and the whole pipeline with a fake model (the critical-defect verdict, dropped findings with invented quotes). GitHub Actions runs them on Python 3.11 and 3.12 on every push.
 
 Every model call is logged to `logs/llm_calls.jsonl` (prompt, answer, model, time) for audit. The folder is not committed.

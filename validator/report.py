@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime
 
-from .criteria import REQUIREMENT_CRITERIA, SET_CRITERIA, SEVERITIES, SEVERITY_ORDER, STATUSES
+from .criteria import REQUIREMENT_CRITERIA, SET_CRITERIA, SEVERITIES, SEVERITY_ORDER
 from .findings import Finding
 from .pipeline import Review
 
