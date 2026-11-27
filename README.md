@@ -6,10 +6,11 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Built_for-BCC--HUB_x_MNU_FinTech_Hackathon-0a7c3e?style=for-the-badge" alt="Built for BCC-HUB x MNU FinTech Hackathon" />
+  <a href="https://github.com/astmirzhan/BCC-Requirements-Validator/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/astmirzhan/BCC-Requirements-Validator/tests.yml?branch=main&style=for-the-badge&label=tests" alt="Tests" /></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
+  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+" />
   <img src="https://img.shields.io/badge/Gemini-API-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white" alt="Gemini API" />
   <img src="https://img.shields.io/badge/Ollama-local_model-000000?style=for-the-badge&logo=ollama&logoColor=white" alt="Ollama" />
   <img src="https://img.shields.io/badge/ISO%2FIEC%2FIEEE-29148:2018-1f4e79?style=for-the-badge" alt="ISO/IEC/IEEE 29148:2018" />
@@ -72,7 +73,7 @@ python -m validator examples/requirements.md reports/report.md
 - inputs: **PDF** (with a text layer), **DOCX**, **Markdown**, **TXT**;
 - options: `--model <name>` overrides the model for one run, `--no-cache` forces fresh model calls.
 
-Requires Python 3.10+ (tested on 3.12).
+Requires Python 3.11+ (tested on 3.11 and 3.12).
 
 ## 🔑 Getting a key
 
@@ -149,8 +150,18 @@ validator/
   pipeline.py   review pipeline and duplicate merging
   report.py     Markdown report
   html.py       HTML version of the report
+tests/          pytest suite, no model calls
 examples/       sample document (.md and .pdf)
 reports/        report produced by the agent
 ```
+
+## 🧪 Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+24 tests run in under a second with no key and no network: rules on the sample document, quote verification, duplicate merging, PDF reading, and the whole pipeline with a fake model (the critical-defect verdict, dropped findings with invented quotes). GitHub Actions runs them on Python 3.11 and 3.12 on every push.
 
 Every model call is logged to `logs/llm_calls.jsonl` (prompt, answer, model, time) for audit. The folder is not committed.
