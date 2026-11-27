@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/readme/banner.png" alt="BCC Requirements Validator: requirement defects, caught before the code" width="100%" />
+
 # BCC Requirements Validator
 
 **An AI agent that reviews a requirements document before development starts and writes a report in Russian.**
