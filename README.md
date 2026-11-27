@@ -23,7 +23,7 @@
 
 ## 🎬 Demo video
 
-*Coming soon.*
+The agent is run with one command on the organizers' document, analyses it and writes the report, in 3 minutes ([direct MP4](https://raw.githubusercontent.com/astmirzhan/BCC-Requirements-Validator/main/docs/readme/demo.mp4)).
 
 ## 📌 What it does
 
