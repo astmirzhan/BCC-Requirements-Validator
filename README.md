@@ -1,140 +1,156 @@
+<div align="center">
+
 # BCC Requirements Validator
 
-An AI agent that performs a **static review of a requirements document before development**. It reads the document, splits it into individual requirements, checks every requirement and the whole set against ISO/IEC/IEEE 29148:2018 (5.2.5, 5.2.6) and IEEE Std 830-1998 (4.3), and writes a report in Russian. Each defect in the report quotes the exact place in the document.
+**An AI agent that reviews a requirements document before development starts and writes a report in Russian.**
 
-Built for the BCC-HUB x MNU FinTech Hackathon ([task](https://github.com/BCC-HUB/ai-requirements-validator-task)).
+<p align="center">
+  <img src="https://img.shields.io/badge/Built_for-BCC--HUB_x_MNU_FinTech_Hackathon-0a7c3e?style=for-the-badge" alt="Built for BCC-HUB x MNU FinTech Hackathon" />
+</p>
 
-## Quick start
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
+  <img src="https://img.shields.io/badge/Gemini-API-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white" alt="Gemini API" />
+  <img src="https://img.shields.io/badge/Ollama-local_model-000000?style=for-the-badge&logo=ollama&logoColor=white" alt="Ollama" />
+  <img src="https://img.shields.io/badge/ISO%2FIEC%2FIEEE-29148:2018-1f4e79?style=for-the-badge" alt="ISO/IEC/IEEE 29148:2018" />
+  <img src="https://img.shields.io/badge/IEEE-830--1998-1f4e79?style=for-the-badge" alt="IEEE 830-1998" />
+</p>
+
+</div>
+
+---
+
+## 🎬 Demo video
+
+*Coming soon.*
+
+## 📌 What it does
+
+You give the agent a requirements document (PDF, DOCX, Markdown or TXT). It:
+
+1. **splits it into requirements**, each with an exact quote and line number;
+2. **checks every requirement** against the nine characteristics of ISO/IEC/IEEE 29148:2018 §5.2.5;
+3. **checks the whole set** against ISO 29148 §5.2.6 and IEEE 830-1998 §4.3: completeness, consistency, contradictions between sections;
+4. **writes a report in Russian** (`.md` + `.html`). Every defect points to a concrete place in the document, and the report ends with a verdict on whether development and testing can start.
+
+## 🔍 Result on the sample document
+
+The agent was run on the organizers' document [`examples/requirements.md`](examples/requirements.md). Full report: [`reports/report.md`](reports/report.md) ([HTML version](reports/report.html)).
+
+**40 requirements · 73 defects · 9 critical · verdict: do not start development.**
+
+<img src="docs/readme/finding.png" alt="Critical contradiction between Ф-3 and Ф-4 with the scenario that breaks them" width="100%" />
+
+| Critical defect found | Where |
+| :--- | :--- |
+| Ф-3 «max one push a month» contradicts Ф-4 «push regardless of history», with a breaking scenario | lines 39, 40 |
+| Ф-2 (month by purchase date) contradicts the acceptance case for 31 January | lines 38, 64 |
+| Saving a setting is declared as `GET` | lines 103, 104 |
+| Description says both «save» and «read», but there is no read method | lines 29, 52, 103 |
+| `200 OK` returned with `result: ERROR`, conflicting with `400` | lines 121, 151, 162–171 |
+| `403` declared, but the text says to return `404` for a foreign card | lines 118, 175, 189 |
+| `amount` / `enabled` are integers in the request and strings in the response | lines 143–157 |
+
+Rules without a model also catch tiyn vs tenge units, an empty Prod URL, a Content-Type with no body, no document version, empty approvers, an unfilled checklist and a missing rollback plan.
+
+<img src="docs/readme/summary.png" alt="Report summary and verdict" width="100%" />
+
+## 🚀 Quick start
 
 ```bash
 git clone https://github.com/astmirzhan/BCC-Requirements-Validator.git
 cd BCC-Requirements-Validator
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env            # then put your key into .env
+cp .env.example .env            # put your key into .env
 python -m validator examples/requirements.md reports/report.md
 ```
 
-The report is written to the path given as the second argument (`reports/report.md` above).
+**The command:** `python -m validator <input file> <report file>`
 
-Requirements: Python 3.10+ (tested on 3.12), internet access for a cloud model.
+- the report is written to the path given as the second argument, with an `.html` file next to it;
+- inputs: **PDF** (with a text layer), **DOCX**, **Markdown**, **TXT**;
+- options: `--model <name>` overrides the model for one run, `--no-cache` forces fresh model calls.
 
-## Getting an LLM key
+Requires Python 3.10+ (tested on 3.12).
 
-The default model is **Google Gemini** on the free tier, no card needed:
+## 🔑 Getting a key
+
+The default model is **Google Gemini**, free tier, no card needed:
 
 1. Open [aistudio.google.com](https://aistudio.google.com/) and sign in with a Google account.
-2. Click **Get API key** → **Create API key**.
-3. Paste it into `.env`: `GEMINI_API_KEY=...`
+2. **Get API key** → **Create API key**.
+3. Put it into `.env`: `GEMINI_API_KEY=...`
 
-`.env` is listed in `.gitignore`, so the key is never committed. `.env.example` holds the same settings without a key.
+`.env` is in `.gitignore`, so the key is never committed. `.env.example` lists every setting without a key.
 
-## Model
-
-| Setting | Value |
+| Setting | Default |
 | :--- | :--- |
-| Provider | Google Gemini API (free tier) |
-| Main model | `gemini-3.8-flash` (`GEMINI_MODEL`) |
-| Fallbacks | `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-3.5-flash-lite` (`GEMINI_FALLBACK_MODELS`) |
-| Temperature | 0 |
+| `LLM_PROVIDER` | `gemini` (or `openai`, `ollama`) |
+| `GEMINI_MODEL` | `gemini-3.8-flash` |
+| `GEMINI_FALLBACK_MODELS` | `gemini-3.7-flash,gemini-3.5-flash,gemini-3.5-flash-lite`, used when the main model is overloaded or out of quota |
+| `LLM_TEMPERATURE` | `0` |
 
-The free tier has small daily quotas and the models are sometimes overloaded (HTTP 503). The agent then retries and moves to the next fallback model on its own. The report passport records which model handled each step.
-
-A run makes **4 model calls**, and answers are cached in `.cache/llm/`, so running again on the same document costs nothing. Use `--no-cache` to force fresh calls and `--model <name>` to override the model for one run.
-
-### Other providers and a local model
-
-Any OpenAI-compatible API works through `.env`:
-
-```bash
-LLM_PROVIDER=openai
-OPENAI_API_KEY=...
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-5-mini
-```
-
-For a bank, internal requirements often may not leave the company network. The same agent runs on a **local model through [Ollama](https://ollama.com/)**, and the document never leaves the computer:
+**Inside a bank network.** Internal requirements often may not leave the company. The same agent runs on a local model through [Ollama](https://ollama.com/), and the document stays on the computer:
 
 ```bash
 ollama pull qwen2.5:14b
-# .env
+# in .env
 LLM_PROVIDER=ollama
 OLLAMA_MODEL=qwen2.5:14b
 ```
 
-## Usage
+Any OpenAI-compatible API works the same way (`LLM_PROVIDER=openai`, see `.env.example`).
 
-```
-python -m validator <requirements file> <report file> [--model NAME] [--no-cache]
-```
+## 🧠 How it works
 
-Input formats: **PDF** (text layer), **DOCX**, **Markdown**, **TXT**.
-
-## How it works
-
-```
-document ─► loader ─► numbered lines
-                         │
-     ┌───────────────────┼─────────────────────────────┐
-     ▼                   ▼                             ▼
- rules (no LLM)    LLM 1: slicing             (rule findings are passed
- vague words,      requirements + quotes       to the model as "already
- empty sections,         │                     found", so it looks for
- units, HTTP,            ▼                     other defects)
- statuses …        LLM 2: each requirement
-                   9 criteria, ISO 29148 5.2.5
-                         │
-                         ▼
-                   LLM 3: conflicts
-                   acceptance cases replayed against rules,
-                   pairs of rules on event sequences
-                         │
-                         ▼
-                   LLM 4: whole set
-                   ISO 29148 5.2.6 + IEEE 830 4.3
-                         │
-                         ▼
-        quote verification + merging duplicates ─► report.md + report.html
+```mermaid
+flowchart LR
+  A["📄 Document<br/>PDF · DOCX · MD"] --> B["Numbered lines"]
+  B --> R["⚙️ Rules, no LLM<br/>vague words, empty fields,<br/>units, HTTP, statuses"]
+  B --> S["🤖 1. Slicing<br/>requirements + quotes"]
+  S --> Q["🤖 2. Each requirement<br/>9 criteria, ISO 29148 §5.2.5"]
+  Q --> C["🤖 3. Contradictions<br/>acceptance cases replayed,<br/>pairs of rules on scenarios"]
+  C --> W["🤖 4. Whole set<br/>ISO 29148 §5.2.6, IEEE 830 §4.3"]
+  R --> V
+  W --> V["✅ Quote check<br/>+ duplicate merge"]
+  V --> O["📝 report.md + report.html"]
 ```
 
-1. **Loader** (`validator/loader.py`) turns PDF, DOCX or Markdown into numbered lines. Every reference in the report is a line number (and a page for PDF).
-2. **Rules** (`validator/rules.py`) are deterministic checks that never hallucinate: vague wording («быстро», «в течение», «и т. п.»), empty sections and fields, placeholders, unfilled checklists and approval tables, mixed currency units, GET used for write operations, response codes used but not described, Content-Type without a body, missing document version, missing rollback plan.
-3. **Slicing** (LLM call 1) extracts every requirement with its document id (or an assigned `R-xx`), section, type and an exact quote.
-4. **Per-requirement check** (LLM call 2) scores each requirement on the nine ISO 29148 5.2.5 characteristics: necessary, appropriate, unambiguous, complete, singular, feasible, verifiable, correct, conforming.
-5. **Conflict search** (LLM call 3) replays every acceptance case through the rules, tests pairs of rules on event sequences and cross-checks API fields, units and status codes. This is how contradictions such as "at most one push a month" versus "push regardless of history" are caught, each with the scenario that breaks them.
-6. **Whole-set check** (LLM call 4) covers completeness, consistency, feasibility, comprehensibility, validatability (ISO 29148 5.2.6) and ranking, modifiability, traceability (IEEE 830 4.3).
-7. **Quote verification** (`validator/quotes.py`): every quote the model returns is looked up in the document. Findings whose quote is not there are dropped from the summary and listed in an appendix, so the report contains no claims without a place in the text. Findings about the same defect (same lines, or lines the texts name, and similar wording) are merged into one.
-8. **Report** (`validator/report.py`) follows section 6 of the task. Next to the Markdown file the agent writes an HTML version (`report.html`) with severity colors and clickable defect ids (`validator/html.py`).
+- **4 model calls per run.** Answers are cached in `.cache/llm/`, so a repeat run on the same document is instant and free.
+- **No claims without a place in the text.** Every quote the model returns is looked up in the document. Findings whose quote is not found are removed from the summary and listed in an appendix.
+- **Deterministic rules** (`validator/rules.py`) catch what a model can miss and never hallucinate. Their findings are passed to the model as "already found", so it looks for other defects.
+- **Works on a free tier.** If a model is overloaded (503) or out of quota (429), the agent switches to the next fallback model. The passport records which model did each step.
+- **Strict verdict.** Any critical defect means "do not start development", whatever the model says.
 
-## Report contents
+## 📄 Report contents
 
-1. Run passport: document, SHA-256, date, model per step, agent version and commit.
-2. How the agent sliced the requirements: report id, document id, section, short wording, quote with line.
-3. Check of each requirement: a criteria matrix plus every defect with quote, problem and recommendation.
-4. Check of the whole set.
-5. Automatic checks without a model.
-6. Summary: number of requirements, number of violations by severity, list of critical defects.
-7. Verdict: whether development and testing can start, and what to fix first.
+1. **Run passport:** document, SHA-256, date, model per step, agent version and commit.
+2. **Slicing:** every requirement with its document id, section, type and quote.
+3. **Each requirement:** a criteria matrix and every defect with quote, problem and recommendation.
+4. **Whole set:** completeness, consistency, feasibility, comprehensibility, validatability, ranking, modifiability, traceability.
+5. **Rule checks** done without a model.
+6. **Summary:** counts by severity and the list of critical defects.
+7. **Verdict:** can development and testing start, and what to fix first.
 
-Severity levels: 🔴 critical (cannot be implemented or tested unambiguously), 🟠 major, 🟡 minor. If any critical defect is found, the verdict is "no" regardless of the model's opinion.
+Severity: 🔴 critical (cannot be built or tested unambiguously) · 🟠 major · 🟡 minor.
 
-## Project layout
+## 📁 Project layout
 
 ```
 validator/
   __main__.py   CLI entry point
-  loader.py     PDF / DOCX / Markdown reading
-  llm.py        provider-agnostic client: JSON, retries, fallbacks, cache, call log
-  criteria.py   ISO 29148 / IEEE 830 criteria
-  prompts.py    prompts for the four LLM steps
+  loader.py     PDF / DOCX / Markdown reading into numbered lines
   rules.py      deterministic checks
+  prompts.py    prompts for the four model steps
+  criteria.py   ISO 29148 / IEEE 830 criteria
+  llm.py        Gemini / OpenAI-compatible / Ollama client: JSON, fallbacks, cache, log
   quotes.py     quote verification
-  pipeline.py   review pipeline
+  pipeline.py   review pipeline and duplicate merging
   report.py     Markdown report
   html.py       HTML version of the report
-examples/requirements.md   document from the organizers
-examples/requirements.pdf  the same document as PDF
-reports/report.md, .html   report produced by this agent
+examples/       sample document (.md and .pdf)
+reports/        report produced by the agent
 ```
 
-Every model call is logged to `logs/llm_calls.jsonl` (prompt, answer, model, time) for auditing. The folder is not committed.
+Every model call is logged to `logs/llm_calls.jsonl` (prompt, answer, model, time) for audit. The folder is not committed.
