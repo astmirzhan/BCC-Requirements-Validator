@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from . import prompts
@@ -68,20 +69,23 @@ def run_review(document: Document, llm: LLMClient, log=print) -> Review:
     req_dicts = [vars(r) for r in requirements]
     known = [f"строка {f.refs[0].line}: {f.problem.split('.')[0]}" for f in rule_findings if f.refs]
 
+    # Steps 3-5 only need the sliced requirements, so they run at the same time.
     log("3/5 Проверка каждого требования")
-    checked = llm.complete_json(
-        prompts.SYSTEM, prompts.requirements_prompt(numbered, req_dicts, known), step="requirements"
-    )
-    req_findings = _parse_requirement_results(checked, requirements, index)
-
     log("4/5 Поиск противоречий между частями документа")
-    conflicts = llm.complete_json(
-        prompts.SYSTEM, prompts.conflicts_prompt(numbered, req_dicts, known), step="conflicts"
-    )
-    conflict_findings = _parse_conflicts(conflicts, requirements, index)
-
     log("5/5 Проверка набора требований целиком")
-    set_result = llm.complete_json(prompts.SYSTEM, prompts.set_prompt(numbered, req_dicts, known), step="set")
+    log("    шаги 3–5 идут параллельно")
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        checked_job = pool.submit(
+            llm.complete_json, prompts.SYSTEM, prompts.requirements_prompt(numbered, req_dicts, known), "requirements"
+        )
+        conflicts_job = pool.submit(
+            llm.complete_json, prompts.SYSTEM, prompts.conflicts_prompt(numbered, req_dicts, known), "conflicts"
+        )
+        set_job = pool.submit(llm.complete_json, prompts.SYSTEM, prompts.set_prompt(numbered, req_dicts, known), "set")
+        checked, conflicts, set_result = checked_job.result(), conflicts_job.result(), set_job.result()
+
+    req_findings = _parse_requirement_results(checked, requirements, index)
+    conflict_findings = _parse_conflicts(conflicts, requirements, index)
     set_findings, set_criteria, verdict = _parse_set_result(set_result, requirements, index)
     set_findings = conflict_findings + set_findings
 

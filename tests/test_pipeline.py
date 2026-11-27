@@ -56,7 +56,8 @@ META = {"started": started_now(), "model": "fake:model", "step_models": {}, "age
 def test_four_model_steps_and_all_report_sections(make_doc):
     llm = FakeLLM(answers(critical=True))
     review = run_review(make_doc(DOC), llm, log=lambda *_: None)
-    assert llm.steps == ["slice", "requirements", "conflicts", "set"]
+    assert llm.steps[0] == "slice"
+    assert sorted(llm.steps[1:]) == ["conflicts", "requirements", "set"]
     assert [r.doc_id for r in review.requirements] == ["Ф-1", "Ф-2"]
     report = render_markdown(review, META)
     for section in ["## 1.", "## 2.", "## 3.", "## 4.", "## 5.", "## 6.", "## 7."]:

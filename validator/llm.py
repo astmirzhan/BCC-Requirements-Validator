@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -21,7 +22,7 @@ from pathlib import Path
 
 ATTEMPTS_PER_MODEL = 3
 CHAIN_ROUNDS = int(os.getenv("LLM_CHAIN_ROUNDS", "4"))
-CHAIN_PAUSE = 60
+CHAIN_PAUSE = 20
 
 
 class LLMError(Exception):
@@ -83,6 +84,11 @@ class LLMClient:
     models_used: list[str] = field(default_factory=list)
     step_models: dict[str, str] = field(default_factory=dict)
     _gemini: object = field(default=None, repr=False)
+    # Model health learned during the run: the last model that answered is tried first,
+    # a model that just failed goes to the back of the queue. Steps may run in parallel threads.
+    _good: list[str] = field(default_factory=list, repr=False)
+    _failed: dict[str, float] = field(default_factory=dict, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     @property
     def label(self) -> str:
@@ -95,26 +101,33 @@ class LLMClient:
         """Ask the model for a JSON object.
 
         Each model gets a few attempts; an overloaded or out-of-quota model hands over to the next
-        fallback. When every model is overloaded, the whole chain is retried after a pause.
+        fallback at once. Models that answered earlier in the run are tried first and models that
+        failed go last, so later steps do not wait on a busy model again. When every model is
+        busy, the chain is retried after a short pause.
         """
-        candidates = [self.config.model, *self.config.fallback_models]
-        for model in candidates:
+        configured = [self.config.model, *self.config.fallback_models]
+        for model in configured:
             cached = self._cache_get(self._key(model, system, prompt))
             if cached is not None:
-                self.cache_hits += 1
+                with self._lock:
+                    self.cache_hits += 1
                 self._used(step, model)
                 return cached
 
         last_error: LLMError | None = None
         for round_no in range(1, CHAIN_ROUNDS + 1):
-            for model in candidates:
+            for model in self._ordered(configured):
                 try:
-                    return self._complete_with(model, system, prompt, step)
+                    data = self._complete_with(model, system, prompt, step)
                 except LLMError as exc:
                     last_error = exc
                     if not (_is_overloaded(exc) or _is_daily_quota(exc)):
                         raise
+                    self._mark(model, ok=False)
                     print(f"  ! {step}: {model} недоступна ({_short(exc)}), пробую следующую модель")
+                    continue
+                self._mark(model, ok=True)
+                return data
             if round_no < CHAIN_ROUNDS:
                 print(f"  ! {step}: все модели заняты, жду {CHAIN_PAUSE} с (круг {round_no}/{CHAIN_ROUNDS})")
                 time.sleep(CHAIN_PAUSE)
@@ -142,21 +155,43 @@ class LLMClient:
                 print(f"  ! {step}: {model}: {_short(exc)}. Повтор через {wait:.0f} с")
                 time.sleep(wait)
                 continue
-            self.calls += 1
-            self._used(step, model)
+            with self._lock:
+                self.calls += 1
             self._log(step, model, system, prompt, raw, time.monotonic() - started)
             self._cache_put(self._key(model, system, prompt), data)
+            self._used(step, model)
             return data
         raise LLMError("unreachable")
+
+    def _ordered(self, configured: list[str]) -> list[str]:
+        """Working models first (most recent success first), then untried, then failed ones."""
+        with self._lock:
+            good = [m for m in self._good if m in configured]
+            failed = sorted((m for m in configured if m in self._failed and m not in good), key=self._failed.get)
+            untried = [m for m in configured if m not in good and m not in failed]
+        return good + untried + failed
+
+    def _mark(self, model: str, ok: bool) -> None:
+        with self._lock:
+            if ok:
+                self._failed.pop(model, None)
+                if model in self._good:
+                    self._good.remove(model)
+                self._good.insert(0, model)
+            else:
+                if model in self._good:
+                    self._good.remove(model)
+                self._failed[model] = time.monotonic()
 
     def _key(self, model: str, system: str, prompt: str) -> str:
         payload = json.dumps([self.config.provider, model, system, prompt], ensure_ascii=False)
         return hashlib.sha256(payload.encode()).hexdigest()
 
     def _used(self, step: str, model: str) -> None:
-        self.step_models[step] = model
-        if model not in self.models_used:
-            self.models_used.append(model)
+        with self._lock:
+            self.step_models[step] = model
+            if model not in self.models_used:
+                self.models_used.append(model)
 
     # ---- providers --------------------------------------------------------
 
@@ -244,8 +279,9 @@ class LLMClient:
             "prompt": prompt,
             "response": raw,
         }
-        with self.config.log_path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        line = json.dumps(record, ensure_ascii=False) + "\n"
+        with self._lock, self.config.log_path.open("a", encoding="utf-8") as fh:
+            fh.write(line)
 
 
 def parse_json(raw: str) -> dict:
