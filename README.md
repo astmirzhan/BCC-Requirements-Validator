@@ -40,7 +40,7 @@ You give the agent a requirements document (PDF, DOCX, Markdown or TXT). It:
 
 ## 🔍 Result on the sample document
 
-The agent was run on the organizers' document [`examples/requirements.md`](examples/requirements.md). Full report: [`reports/report.md`](reports/report.md) ([HTML version](reports/report.html)).
+The agent was run on the organizers' document [`docs/requirements.md`](docs/requirements.md). Full report: [`reports/report.md`](reports/report.md) ([HTML version](reports/report.html)).
 
 **40 requirements · 73 defects · 9 critical · verdict: do not start development.**
 
@@ -68,12 +68,13 @@ cd BCC-Requirements-Validator
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env            # put your key into .env
-python -m validator examples/requirements.md reports/report.md
+python -m validator docs/requirements.md report.md
 ```
 
 **The command:** `python -m validator <input file> <report file>`
 
-- the report is written to the path given as the second argument, with an `.html` file next to it;
+- `docs/requirements.md` is the organizers' document (also in `examples/` together with a PDF copy);
+- the report is written to the path given as the second argument (`report.md` above), with an `.html` file next to it;
 - inputs: **PDF** (with a text layer), **DOCX**, **Markdown**, **TXT**;
 - options: `--model <name>` overrides the model for one run, `--no-cache` forces fresh model calls.
 
@@ -155,6 +156,7 @@ validator/
   report.py     Markdown report
   html.py       HTML version of the report
 tests/          pytest suite, no model calls
+docs/           organizers' requirements.md, README images
 examples/       sample document (.md and .pdf)
 reports/        report produced by the agent
 ```
